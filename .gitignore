@@ -1,0 +1,19 @@
+# Ignore environment variables (Keep API keys safe!)
+.env
+
+# Ignore the virtual environment (CRITICAL!)
+venv/
+.venv/
+env/
+
+# Ignore the vector database and PDFs so GitHub doesn't crash
+data/
+*.pdf
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore Mac system files
+.DS_Store
