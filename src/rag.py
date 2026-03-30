@@ -42,13 +42,13 @@ def get_retriever():
         persist_directory=VECTOR_STORE_PATH, 
         embedding_function=embeddings
     )
-    return vector_store.as_retriever(search_kwargs={"k": 3})
+    return vector_store.as_retriever(search_kwargs={"k": 5})
 
 def ask_contract_question(question):
     """Searches the document and asks Gemini to answer based ONLY on those findings."""
     
     # 1. Initialize the AI (Temperature 0 means it will be factual, not creative)
-    llm = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     
     # 2. Prompt Engineering: Give the AI strict rules
     system_prompt = (

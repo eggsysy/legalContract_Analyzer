@@ -21,7 +21,7 @@ def extract_text_from_pdf(pdf_path):
         print(f"An unexpected error occurred: {e}")
         return None
 
-def chunk_text(text, chunk_size=1000, chunk_overlap=200):
+def chunk_text(text, chunk_size=2000, chunk_overlap=400):
     """Splits the text into smaller, overlapping chunks."""
     # Recursive text splitting is a core RAG skill. 
     # It tries to split by paragraphs first, then sentences, keeping ideas intact.
