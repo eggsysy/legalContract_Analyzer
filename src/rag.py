@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 
 # Using the classic package for these specific chain constructors
@@ -52,8 +53,9 @@ def get_retriever():
     )
 
 def ask_contract_question(question, chat_history=""):
-    """Searches the document and returns ONLY the text answer."""
+    """Searches the document and STREAMS the text answer back."""
     
+    # Initialize the AI
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     
     # IMPROVED PROMPT: Instructs AI to look for specific entity names in headers
@@ -70,7 +72,6 @@ def ask_contract_question(question, chat_history=""):
         "Retrieved Context:\n{context}"
     )
 
-    
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", "{input}"),
@@ -80,28 +81,38 @@ def ask_contract_question(question, chat_history=""):
     document_chain = create_stuff_documents_chain(llm, prompt)
     rag_chain = create_retrieval_chain(retriever, document_chain)
     
-    print(f"\nAnalyzing: '{question}'...")
-    response = rag_chain.invoke({
+    print(f"\nAnalyzing (Streaming): '{question}'...")
+    
+    # --- NEW: Streaming Logic ---
+    # We iterate through the chain's stream instead of calling invoke()
+    for chunk in rag_chain.stream({
         "input": question, 
         "chat_history": chat_history
-    })
-    
-    # Updated to return ONLY the answer string
-    return response["answer"]
+    }):
+        # The chain outputs dictionary chunks. We only want to yield the actual answer text.
+        if "answer" in chunk:
+            yield chunk["answer"]
+            time.sleep(0.03)
 
 # --- Test Block ---
 if __name__ == "__main__":
-    print("--- Testing the AI Pipeline (Simplified) ---")
+    import sys # Needed for flush printing
+    print("--- Testing the AI Pipeline (Streaming) ---")
     
     test_question = "Who is the Disclosing Party and who is the Receiving Party?"
     
     try:
-        # Now expecting only one return value
-        answer = ask_contract_question(test_question)
+        # Get the generator object
+        stream_generator = ask_contract_question(test_question)
+        
         print("\n🤖 AI Assistant says:")
         print("-" * 30)
-        print(answer)
-        print("-" * 30)
+        
+        # Iterate over the generator and print chunk by chunk
+        for text_chunk in stream_generator:
+            print(text_chunk, end="", flush=True)
+            
+        print("\n" + "-" * 30)
         
     except Exception as e:
         print(f"\n❌ Error: {e}")

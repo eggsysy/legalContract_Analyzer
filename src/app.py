@@ -199,7 +199,7 @@ st.markdown("""
     /* ══════════════════════════════════════════════════════
        BUTTONS — Understated copper accent
        ══════════════════════════════════════════════════════ */
-    div.stButton > button:first-child {
+    div.stButton > button:first-child, div.stDownloadButton > button:first-child {
         background: transparent !important;
         border: 1px solid rgba(193, 127, 89, 0.2) !important;
         border-radius: 8px !important;
@@ -212,7 +212,7 @@ st.markdown("""
         transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1) !important;
     }
 
-    div.stButton > button:first-child:hover {
+    div.stButton > button:first-child:hover, div.stDownloadButton > button:first-child:hover {
         background: rgba(193, 127, 89, 0.1) !important;
         border-color: rgba(193, 127, 89, 0.4) !important;
         color: #dfc09a !important;
@@ -285,14 +285,26 @@ st.markdown("""
         background-color: #0f1322 !important;
     }
 
-    /* Chat messages */
-    [data-testid="stChatMessage"] {
+    /* Chat messages — unified style for BOTH user and assistant bubbles */
+    [data-testid="stChatMessage"],
+    [data-testid="stChatMessage-user"],
+    [data-testid="stChatMessage-assistant"] {
         background: rgba(15, 19, 34, 0.8) !important;
         border: 1px solid rgba(193, 127, 89, 0.06) !important;
         border-radius: 12px !important;
         padding: 1.2rem !important;
         margin-bottom: 0.6rem !important;
         animation: msgReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) !important;
+    }
+
+    /* Kill Streamlit's role-specific inner container backgrounds */
+    [data-testid="stChatMessage"] > div,
+    [data-testid="stChatMessage"] > div > div,
+    [data-testid="stChatMessage"] [data-testid="stChatMessageContent"],
+    [data-testid="stChatMessage"] [class*="Message"],
+    [data-testid="stChatMessage"] [class*="message"] {
+        background: transparent !important;
+        background-color: transparent !important;
     }
 
     [data-testid="stChatMessage"] p,
@@ -716,6 +728,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ─── Session State ────────────────────────────────────────────────────────────
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
 # ─── Sidebar ─────────────────────────────────────────────────────────────────
 with st.sidebar:
     # Monogram brand
@@ -794,6 +810,26 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+    # ─── NEW: Export Chat Feature ─────────────────────────────────────────────
+    # Only show the download button if there is an active conversation
+    if len(st.session_state.messages) > 0:
+        st.markdown("---")
+        st.markdown('<div class="sec-label">Export</div>', unsafe_allow_html=True)
+        
+        # Build the Markdown string for export
+        export_text = f"# LegalMind Analysis Transcript\n**Document Analysed:** {st.session_state.last_uploaded}\n\n---\n\n"
+        for msg in st.session_state.messages:
+            role_title = "User" if msg["role"] == "user" else "LegalMind AI"
+            export_text += f"### {role_title}\n{msg['content']}\n\n"
+            
+        st.download_button(
+            label="📥 Download Chat Transcript",
+            data=export_text,
+            file_name="legalmind_transcript.md",
+            mime="text/markdown",
+            use_container_width=True
+        )
+
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
     <div class="sidebar-footer">
@@ -801,11 +837,6 @@ with st.sidebar:
         LangChain + ChromaDB RAG Pipeline
     </div>
     """, unsafe_allow_html=True)
-
-
-# ─── Session State ────────────────────────────────────────────────────────────
-if "messages" not in st.session_state:
-    st.session_state.messages = []
 
 
 # ─── Main Content ─────────────────────────────────────────────────────────────
@@ -1018,15 +1049,15 @@ if user_input:
         chat_transcript += f"{role}: {msg['content']}\n"
 
     with st.chat_message("assistant", avatar=None):
-        with st.spinner("Reviewing contract clauses..."):
-            try:
-                answer = ask_contract_question(user_input, chat_transcript)
-                st.markdown(answer)
+        try:
+            # ask_contract_question is a generator (yields streamed chunks).
+            # st.write_stream() iterates it and renders each chunk live (typewriter effect),
+            # then returns the full concatenated string so we can save it to history.
+            answer = st.write_stream(ask_contract_question(user_input, chat_transcript))
 
-                st.session_state.messages.append({"role": "user", "content": user_input})
-                st.session_state.messages.append({"role": "assistant", "content": answer})
-                st.rerun()
+            st.session_state.messages.append({"role": "user", "content": user_input})
+            st.session_state.messages.append({"role": "assistant", "content": answer})
 
-            except Exception as e:
-                st.error("Please ensure a document is uploaded and fully processed before asking questions.")
-                print(f"Detailed Error: {e}")
+        except Exception as e:
+            st.error("Please ensure a document is uploaded and fully processed before asking questions.")
+            print(f"Detailed Error: {e}")
