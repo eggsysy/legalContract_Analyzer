@@ -1056,15 +1056,27 @@ if user_input:
 
     with st.chat_message("assistant", avatar=None):
         try:
-            # ask_contract_question is a generator (yields streamed chunks).
-            # st.write_stream() iterates it and renders each chunk live (typewriter effect),
-            # then returns the full concatenated string so we can save it to history.
-            answer = st.write_stream(ask_contract_question(user_input, chat_transcript))
+            # 1. Get the raw stream generator from the backend
+            raw_stream = ask_contract_question(user_input, chat_transcript)
+            
+            # 2. Show the spinner ONLY while we wait for the very first chunk of text
+            with st.spinner("Analyzing contract clauses..."):
+                first_chunk = next(raw_stream)
+            
+            # 3. The spinner disappears! Now we stitch the first chunk back with the rest of the stream
+            def seamless_stream():
+                yield first_chunk
+                yield from raw_stream
+                
+            # 4. Feed the stitched stream into the typewriter
+            answer = st.write_stream(seamless_stream())
 
+            # Save to history
             st.session_state.messages.append({"role": "user", "content": user_input})
             st.session_state.messages.append({"role": "assistant", "content": answer})
-            st.rerun()
 
+        except StopIteration:
+            st.error("⚠️ The AI did not return a response. Please try asking again.")
         except Exception as e:
-            st.error("Please ensure a document is uploaded and fully processed before asking questions.")
+            st.error("⚠️ Please ensure a document is uploaded and fully processed before asking questions.")
             print(f"Detailed Error: {e}")
