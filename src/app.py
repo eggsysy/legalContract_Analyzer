@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-import shutil
 
 # Import our backend functions
 from rag import build_vector_store, ask_contract_question
@@ -768,10 +767,6 @@ with st.sidebar:
             """, unsafe_allow_html=True)
 
             with st.spinner("Building knowledge base..."):
-                vector_db_path = "data/vector_store"
-                if os.path.exists(vector_db_path):
-                    shutil.rmtree(vector_db_path)
-
                 build_vector_store(file_path)
                 st.session_state.last_uploaded = uploaded_file.name
                 st.session_state.messages = []

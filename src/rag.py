@@ -1,5 +1,6 @@
 import os
 import time
+import chromadb
 from dotenv import load_dotenv
 
 # Using the classic package for these specific chain constructors
@@ -17,6 +18,37 @@ from ingestion import extract_text_from_pdf, chunk_text
 load_dotenv()
 
 VECTOR_STORE_PATH = "data/vector_store"
+COLLECTION_NAME = "legal_docs"
+
+# Module-level singleton — one PersistentClient for the entire process lifetime.
+# This prevents stale file-handle bugs when Streamlit reruns the script.
+_chroma_client = None
+
+def _get_chroma_client():
+    """Return (or create) a single PersistentClient for this process.
+    
+    Reusing one client avoids the Rust/SQLite file-handle conflicts that
+    occur when multiple PersistentClient instances point at the same path.
+    """
+    global _chroma_client
+    if _chroma_client is None:
+        os.makedirs(VECTOR_STORE_PATH, exist_ok=True)
+        _chroma_client = chromadb.PersistentClient(path=VECTOR_STORE_PATH)
+    return _chroma_client
+
+def reset_vector_store():
+    """Cleanly wipe the old collection through ChromaDB's API.
+    
+    This replaces shutil.rmtree — never delete the SQLite files on disk
+    while the Rust backend has open handles on them.
+    """
+    client = _get_chroma_client()
+    try:
+        client.delete_collection(COLLECTION_NAME)
+        print("Old collection deleted.")
+    except Exception:
+        # Collection didn't exist yet — that's fine.
+        pass
 
 def build_vector_store(pdf_path):
     """Reads a PDF, chunks it, and saves it into a searchable Vector Database."""
@@ -29,20 +61,28 @@ def build_vector_store(pdf_path):
 
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     
-    # Clean build: We use 'from_texts' which creates a new store
+    # Wipe any existing collection, then create a fresh one
+    reset_vector_store()
+    client = _get_chroma_client()
+    
     vector_store = Chroma.from_texts(
         texts=chunks, 
         embedding=embeddings,
-        persist_directory=VECTOR_STORE_PATH
+        client=client,
+        collection_name=COLLECTION_NAME,
     )
     return vector_store
 
 def get_retriever():
     """Returns a retriever using MMR to ensure a diverse set of document chunks."""
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    
+    client = _get_chroma_client()
+    
     vector_store = Chroma(
-        persist_directory=VECTOR_STORE_PATH, 
-        embedding_function=embeddings
+        client=client,
+        collection_name=COLLECTION_NAME,
+        embedding_function=embeddings,
     )
     
     # MMR (Maximal Marginal Relevance) is better for legal docs 
