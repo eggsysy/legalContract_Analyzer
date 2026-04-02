@@ -219,6 +219,20 @@ st.markdown("""
         box-shadow: 0 4px 20px rgba(193, 127, 89, 0.1) !important;
     }
 
+    /* Sidebar download button — filled copper so it stands out */
+    section[data-testid="stSidebar"] div.stDownloadButton > button {
+        background: rgba(193, 127, 89, 0.18) !important;
+        border: 1px solid rgba(193, 127, 89, 0.4) !important;
+        color: #dfc09a !important;
+        font-weight: 600 !important;
+    }
+    section[data-testid="stSidebar"] div.stDownloadButton > button:hover {
+        background: rgba(193, 127, 89, 0.28) !important;
+        border-color: rgba(193, 127, 89, 0.55) !important;
+        color: #e8d4b8 !important;
+        box-shadow: 0 4px 16px rgba(193, 127, 89, 0.2) !important;
+    }
+
     /* ══════════════════════════════════════════════════════
        CHAT — Dark containers, warm accents
        ══════════════════════════════════════════════════════ */
@@ -782,6 +796,22 @@ with st.sidebar:
             <div class="sidebar-doc-meta">{round(uploaded_file.size / 1024, 1)} KB  /  PDF</div>
         </div>
         """, unsafe_allow_html=True)
+
+        # ─── Export Chat (right below Active Document so it's always visible) ───
+        if st.session_state.get("messages") and len(st.session_state.messages) > 0:
+            doc_name = st.session_state.get("last_uploaded", "Unknown")
+            export_text = f"# LegalMind Analysis Transcript\n**Document Analysed:** {doc_name}\n\n---\n\n"
+            for msg in st.session_state.messages:
+                role_title = "👤 User" if msg["role"] == "user" else "🤖 LegalMind AI"
+                export_text += f"### {role_title}\n{msg['content']}\n\n---\n\n"
+
+            st.download_button(
+                label="⬇  Download Chat Transcript",
+                data=export_text,
+                file_name="legalmind_transcript.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
     else:
         st.markdown("""
         <div class="sidebar-empty">
@@ -805,25 +835,6 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    # ─── NEW: Export Chat Feature ─────────────────────────────────────────────
-    # Only show the download button if there is an active conversation
-    if len(st.session_state.messages) > 0:
-        st.markdown("---")
-        st.markdown('<div class="sec-label">Export</div>', unsafe_allow_html=True)
-        
-        # Build the Markdown string for export
-        export_text = f"# LegalMind Analysis Transcript\n**Document Analysed:** {st.session_state.last_uploaded}\n\n---\n\n"
-        for msg in st.session_state.messages:
-            role_title = "User" if msg["role"] == "user" else "LegalMind AI"
-            export_text += f"### {role_title}\n{msg['content']}\n\n"
-            
-        st.download_button(
-            label="📥 Download Chat Transcript",
-            data=export_text,
-            file_name="legalmind_transcript.md",
-            mime="text/markdown",
-            use_container_width=True
-        )
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
@@ -1052,6 +1063,7 @@ if user_input:
 
             st.session_state.messages.append({"role": "user", "content": user_input})
             st.session_state.messages.append({"role": "assistant", "content": answer})
+            st.rerun()
 
         except Exception as e:
             st.error("Please ensure a document is uploaded and fully processed before asking questions.")
